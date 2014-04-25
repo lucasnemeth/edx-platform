@@ -45,18 +45,18 @@ class WikiAccessMiddleware(object):
             return
 
         course_id = course_id_from_url(request.path)
-        wiki_path = request.path.split('/wiki/', 1)[1]
+        url_prefix = "/courses/{0}".format(course_id)
+        __, __, wiki_path = request.path.partition(url_prefix)
 
         # wiki pages are login required
         if not request.user.is_authenticated():
             return redirect(reverse('accounts_login'), next=request.path)
 
         if course_id:
-            # this is a /course/123/wiki request
-            my_url = request.path.replace(wiki_path, '').replace('/wiki/', '')
+            # This is a /courses/org/name/run/wiki request
             # HACK: django-wiki monkeypatches the reverse function to enable
             # urls to be rewritten
-            reverse._transform_url = lambda url: my_url + url  # pylint: disable=W0212
+            reverse._transform_url = lambda url: url_prefix + url  # pylint: disable=protected-access
             # Authorization Check
             # Let's see if user is enrolled or the course allows for public access
             try:
@@ -66,7 +66,7 @@ class WikiAccessMiddleware(object):
                 # clearing the referrer will cause process_response not to redirect
                 # back to a non-existent course
                 request.META['HTTP_REFERER'] = ''
-                return redirect('/wiki/{}'.format(wiki_path))
+                return redirect(wiki_path)
 
             if not course.allow_public_wiki_access:
                 is_enrolled = CourseEnrollment.is_enrolled(request.user, course.id)
